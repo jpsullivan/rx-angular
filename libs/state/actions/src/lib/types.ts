@@ -26,7 +26,28 @@ type FunctionParamsOrValueType<U, K, F> =
 
 export type Actions = object;
 
-export type SubjectMap<T> = { [K in keyof T]: Subject<T[K]> };
+export enum ActionStatus {
+  Dispatched = 'DISPATCHED',
+  Processing = 'PROCESSING',
+  Completed = 'COMPLETED',
+  Errored = 'ERRORED',
+}
+
+/**
+ * @internal
+ * Used for tracking action state
+ */
+export interface ActionContext<T = any> {
+  action: T;
+  status: ActionStatus;
+  result?: any;
+  error?: Error;
+}
+
+export type SubjectMap<T> = {
+  [K in keyof T]: Subject<ActionContext<T[K]>>;
+};
+
 export type EffectMap<T> = { [K in keyof T]: Subscription };
 
 export type ActionTransforms<T extends object> = Partial<{
@@ -45,6 +66,12 @@ export type ActionDispatchers<T extends Actions, U extends object> = {
 
 export type ActionObservables<T extends Actions> = {
   [K in ExtractString<T> as `${K}$`]: Observable<InstanceOrType<T[K]>>;
+} & {
+  [K in ExtractString<T> as `${K}Loading$`]: Observable<boolean>;
+} & {
+  [K in ExtractString<T> as `${K}Complete$`]: Observable<InstanceOrType<T[K]>>;
+} & {
+  [K in ExtractString<T> as `${K}Error$`]: Observable<boolean>;
 };
 
 export type ActionEffects<T extends Actions, O = T> = {

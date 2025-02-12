@@ -68,7 +68,7 @@ describe('usage in component to handle UI interaction', () => {
     // arrange
     const username = fixture.debugElement.query(By.css('input:first-child'));
     const password = fixture.debugElement.query(
-      By.css('input[type="password"]')
+      By.css('input[type="password"]'),
     );
     const btn = fixture.debugElement.query(By.css('button'));
     const loginSpy = jest.spyOn(service, 'login');
@@ -113,7 +113,7 @@ export class MovieService {
     (refresh$) =>
       refresh$.pipe(exhaustMap(() => this.movieResource.getMovies())),
     // set the value to the state
-    (movies) => this.movies.set(movies)
+    (movies) => this.movies.set(movies),
   );
 
   refresh() {
@@ -176,13 +176,13 @@ class Login2Component {
   private loginEffect = this.actions.onLogin(
     (credentials$) =>
       credentials$.pipe(
-        exhaustMap((credentials) => this.service.login(credentials))
+        exhaustMap((credentials) => this.service.login(credentials)),
       ),
-    () => this.doc.defaultView.alert('successfully logged in')
+    () => this.doc.defaultView.alert('successfully logged in'),
   );
   constructor(
     private service: AuthService,
-    @Inject(DOCUMENT) private doc: Document
+    @Inject(DOCUMENT) private doc: Document,
   ) {}
 }
 
@@ -218,7 +218,7 @@ describe('handling side effects on event emission', () => {
     // arrange
     const username = fixture.debugElement.query(By.css('input:first-child'));
     const password = fixture.debugElement.query(
-      By.css('input[type="password"]')
+      By.css('input[type="password"]'),
     );
     const btn = fixture.debugElement.query(By.css('button'));
     const alertSpy = jest.spyOn(documentMock.defaultView, 'alert');
@@ -279,7 +279,7 @@ class GreetComponent {
     transforms({
       // highlight-next-line
       greet: (v) => `Hello ${v}`,
-    })
+    }),
   );
 }
 
@@ -295,12 +295,22 @@ describe('transform functions', () => {
 
   it('should greet me', () => {
     // arrange
+    // fixture.componentInstance.ui.greetComplete$.pipe(
+    //   tap((g) => {
+    //     console.log(g);
+    //   }),
+    // );
+    // fixture.componentInstance.ui.greet$.pipe(
+    //   tap((g) => {
+    //     console.log(g);
+    //   }),
+    // );
     const input = fixture.debugElement.query(By.css('input'));
     const div = fixture.debugElement.query(By.css('div'));
     input.nativeElement.value = 'me';
     // act
     (input.nativeElement as HTMLInputElement).dispatchEvent(
-      new InputEvent('input')
+      new InputEvent('input'),
     );
     fixture.detectChanges();
     // assert

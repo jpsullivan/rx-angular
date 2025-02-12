@@ -5,11 +5,14 @@ import {
   Injectable,
   Optional,
 } from '@angular/core';
-import { Subject } from 'rxjs';
 import { actionProxyHandler } from './proxy';
-import { Actions, ActionTransforms, EffectMap, RxActions } from './types';
-
-type SubjectMap<T> = { [K in keyof T]: Subject<T[K]> };
+import {
+  Actions,
+  ActionTransforms,
+  EffectMap,
+  RxActions,
+  SubjectMap,
+} from './types';
 
 /**
  * @deprecated - use rxActions instead

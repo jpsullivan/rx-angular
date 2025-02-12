@@ -1,7 +1,7 @@
 import { Component, ErrorHandler, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { isObservable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { isObservable, of, throwError, timer } from 'rxjs';
+import { delay, map, switchMap, tap } from 'rxjs/operators';
 import { rxActions } from './rx-actions';
 import { ActionTransforms } from './types';
 
@@ -203,6 +203,215 @@ describe('actions fn', () => {
 
   it('should throw if called outside of injection context', () => {
     expect(() => rxActions<Actions>()).toThrow('');
+  });
+});
+
+describe('rxActions - Action Status Streams', () => {
+  describe('Loading State', () => {
+    it('should emit loading states for sync operations', (done) => {
+      const { component } = setupComponent<{ process: string }>();
+      const loadingStates: boolean[] = [];
+
+      component.actions.processLoading$.subscribe((loading) => {
+        loadingStates.push(loading);
+        if (loadingStates.length === 2) {
+          expect(loadingStates).toEqual([true, false]);
+          done();
+        }
+      });
+
+      component.actions.process('test');
+    });
+
+    it('should track loading state for async operations', (done) => {
+      const { component } = setupComponent<{ fetch: void }>({
+        transformFns: {
+          fetch: () => timer(50).pipe(map(() => 'done')),
+        },
+      });
+
+      const loadingStates: boolean[] = [];
+      component.actions.fetchLoading$.subscribe((loading) => {
+        loadingStates.push(loading);
+        if (loadingStates.length === 2) {
+          expect(loadingStates).toEqual([true, false]);
+          done();
+        }
+      });
+
+      component.actions.fetch();
+    });
+  });
+
+  describe('Completion State', () => {
+    it('should emit result for sync operations', (done) => {
+      const { component } = setupComponent<{ process: string }>();
+
+      component.actions.processComplete$.subscribe((result) => {
+        expect(result).toBe('test');
+        done();
+      });
+
+      component.actions.process('test');
+    });
+
+    it('should emit transformed result for async operations', (done) => {
+      const { component } = setupComponent<{ fetch: void }>({
+        transformFns: {
+          fetch: () => of('async result').pipe(delay(50)),
+        },
+      });
+
+      component.actions.fetchComplete$.subscribe((result) => {
+        expect(result).toBe('async result');
+        done();
+      });
+
+      component.actions.fetch();
+    });
+
+    it('should handle chained async operations', (done) => {
+      const { component } = setupComponent<{ process: string }>({
+        transformFns: {
+          process: (input: string) =>
+            of(input).pipe(
+              delay(50),
+              map((str) => str.toUpperCase()),
+              delay(50),
+            ),
+        },
+      });
+
+      component.actions.processComplete$.subscribe((result) => {
+        expect(result).toBe('TEST');
+        done();
+      });
+
+      component.actions.process('test');
+    });
+  });
+
+  describe('Error State', () => {
+    it('should handle sync errors', (done) => {
+      const { component } = setupComponent<{ process: string }>({
+        transformFns: {
+          process: () => {
+            throw new Error('sync error');
+          },
+        },
+      });
+
+      component.actions.processError$.subscribe((hasError) => {
+        expect(hasError).toBe(true);
+        done();
+      });
+
+      component.actions.process('test');
+    });
+
+    it('should handle async errors', (done) => {
+      const { component } = setupComponent<{ fetch: void }>({
+        transformFns: {
+          fetch: () =>
+            timer(50).pipe(
+              switchMap(() => throwError(() => new Error('async error'))),
+            ),
+        },
+      });
+
+      component.actions.fetchError$.subscribe((hasError) => {
+        expect(hasError).toBe(true);
+        done();
+      });
+
+      component.actions.fetch();
+    });
+
+    it('should propagate error to error handler', () => {
+      const errorHandler = { handleError: jest.fn() };
+      const error = new Error('test error');
+
+      const { component } = setupComponent<{ fetch: void }>({
+        transformFns: {
+          fetch: () => throwError(() => error),
+        },
+        providers: [{ provide: ErrorHandler, useValue: errorHandler }],
+      });
+
+      component.actions.fetch();
+      expect(errorHandler.handleError).toHaveBeenCalledWith(error);
+    });
+
+    it('should reset error state on successful operation', (done) => {
+      const { component } = setupComponent<{ fetch: void }>({
+        transformFns: {
+          fetch: () => of('success'),
+        },
+      });
+
+      let errorSeen = false;
+      component.actions.fetchError$.subscribe((hasError) => {
+        if (!errorSeen) {
+          expect(hasError).toBe(false);
+          errorSeen = true;
+          done();
+        }
+      });
+
+      component.actions.fetch();
+    });
+  });
+
+  describe('Multiple Concurrent Actions', () => {
+    it('should maintain independent states for different actions', (done) => {
+      const { component } = setupComponent<{
+        fastAction: void;
+        slowAction: void;
+      }>({
+        transformFns: {
+          fastAction: () => of('fast').pipe(delay(50)),
+          slowAction: () => of('slow').pipe(delay(100)),
+        },
+      });
+
+      const states = {
+        fastLoading: [] as boolean[],
+        slowLoading: [] as boolean[],
+        completed: [] as string[],
+      };
+
+      component.actions.fastActionLoading$.subscribe((loading) => {
+        states.fastLoading.push(loading);
+      });
+
+      component.actions.slowActionLoading$.subscribe((loading) => {
+        states.slowLoading.push(loading);
+      });
+
+      let completedCount = 0;
+      component.actions.fastActionComplete$.subscribe((result) => {
+        states.completed.push('fast');
+        checkComplete();
+      });
+
+      component.actions.slowActionComplete$.subscribe((result) => {
+        states.completed.push('slow');
+        checkComplete();
+      });
+
+      component.actions.fastAction();
+      component.actions.slowAction();
+
+      function checkComplete() {
+        completedCount++;
+        if (completedCount === 2) {
+          expect(states.fastLoading).toEqual([true, false]);
+          expect(states.slowLoading).toEqual([true, false]);
+          expect(states.completed).toEqual(['fast', 'slow']);
+          done();
+        }
+      }
+    });
   });
 });
 
