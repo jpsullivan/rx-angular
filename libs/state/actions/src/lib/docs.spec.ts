@@ -294,17 +294,6 @@ describe('transform functions', () => {
   });
 
   it('should greet me', () => {
-    // arrange
-    // fixture.componentInstance.ui.greetComplete$.pipe(
-    //   tap((g) => {
-    //     console.log(g);
-    //   }),
-    // );
-    // fixture.componentInstance.ui.greet$.pipe(
-    //   tap((g) => {
-    //     console.log(g);
-    //   }),
-    // );
     const input = fixture.debugElement.query(By.css('input'));
     const div = fixture.debugElement.query(By.css('div'));
     input.nativeElement.value = 'me';

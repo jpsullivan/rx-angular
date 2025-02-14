@@ -1,7 +1,9 @@
 import { ErrorHandler } from '@angular/core';
 import {
   BehaviorSubject,
+  catchError,
   distinctUntilChanged,
+  EMPTY,
   filter,
   from,
   map,
@@ -65,6 +67,11 @@ export function actionProxyHandler<T extends object, U extends object>({
     if (!actionStreams.has(prop)) {
       const emitter = getEventEmitter(prop as KeysOfT);
       const loading$ = new BehaviorSubject(false);
+      loading$.pipe(
+        tap(() => {
+          console.log();
+        }),
+      );
       const error$ = new BehaviorSubject(false);
       const complete$ = new Subject<any>();
 
@@ -88,6 +95,10 @@ export function actionProxyHandler<T extends object, U extends object>({
               break;
           }
         }),
+        map((ctx: ActionContext<ValuesOfT>) =>
+          'result' in ctx ? ctx.result : ctx.action,
+        ),
+        distinctUntilChanged(),
         share(),
       );
 
@@ -130,19 +141,20 @@ export function actionProxyHandler<T extends object, U extends object>({
         // Handle async (Observable) results
         from(transformedValue)
           .pipe(
+            catchError((error) => {
+              emitter.next({
+                action: value,
+                status: ActionStatus.Errored,
+                error,
+              } as ActionContext<ValuesOfT>);
+              return EMPTY;
+            }),
             tap({
               next: (result) => {
                 emitter.next({
                   action: result,
                   status: ActionStatus.Completed,
                   result,
-                } as ActionContext<ValuesOfT>);
-              },
-              error: (error) => {
-                emitter.next({
-                  action: value,
-                  status: ActionStatus.Errored,
-                  error,
                 } as ActionContext<ValuesOfT>);
               },
             }),
@@ -209,12 +221,7 @@ export function actionProxyHandler<T extends object, U extends object>({
 
         // Regular action$ observable
         const baseProp = property.slice(0, -1) as KeysOfT;
-        return getOrCreateActionStreams(baseProp as string).action$.pipe(
-          map((ctx: ActionContext<ValuesOfT>) =>
-            'result' in ctx ? ctx.result : ctx.action,
-          ),
-          distinctUntilChanged(),
-        );
+        return getOrCreateActionStreams(baseProp as string).action$;
       }
 
       if (property.startsWith('on')) {
